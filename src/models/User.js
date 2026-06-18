@@ -38,6 +38,11 @@ const userSchema = new mongoose.Schema(
     lastLoginAt: {
       type: Date,
       default: null
+    },
+    completedQuestsCount: {
+      type: Number,
+      default: 0,
+      min: 0
     }
   },
   {
