@@ -1,0 +1,197 @@
+import mongoose from 'mongoose';
+
+import { Task, categoryValues, statusValues } from '../models/Task.js';
+import { EARLY_COMPLETION_BONUS, calculateQuestXp, derivePriority } from '../utils/questXp.js';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function validationError(message) {
+  const error = new Error(message);
+  error.statusCode = 400;
+  return error;
+}
+
+function notFoundError(message) {
+  const error = new Error(message);
+  error.statusCode = 404;
+  return error;
+}
+
+function sanitizeTaskInput(body = {}, { partial } = { partial: false }) {
+  const result = {};
+
+  if (!partial || body.title !== undefined) {
+    const title = body.title?.trim();
+    if (!title) {
+      throw validationError('Task title is required.');
+    }
+    if (title.length > 120) {
+      throw validationError('Task title must be 120 characters or fewer.');
+    }
+    result.title = title;
+  }
+
+  if (body.description !== undefined) {
+    result.description = String(body.description).trim().slice(0, 1000);
+  }
+
+  if (body.category !== undefined) {
+    if (!categoryValues.includes(body.category)) {
+      throw validationError(`Category must be one of: ${categoryValues.join(', ')}.`);
+    }
+    result.category = body.category;
+  }
+
+  if (!partial || body.hardness !== undefined) {
+    const hardness = Number(body.hardness);
+    if (!Number.isFinite(hardness) || hardness < 1 || hardness > 10) {
+      throw validationError('Hardness must be a number between 1 and 10.');
+    }
+    result.hardness = Math.round(hardness);
+  }
+
+  if (!partial || body.days !== undefined) {
+    if (body.days !== undefined) {
+      const days = Number(body.days);
+      if (!Number.isFinite(days) || days < 1 || days > 365) {
+        throw validationError('Deadline must be between 1 and 365 days.');
+      }
+      result.days = Math.round(days);
+    } else if (!partial) {
+      throw validationError('Deadline (in days) is required.');
+    }
+  }
+
+  if (body.note !== undefined) {
+    result.note = String(body.note).trim().slice(0, 500);
+  }
+
+  if (body.status !== undefined) {
+    if (!statusValues.includes(body.status)) {
+      throw validationError(`Status must be one of: ${statusValues.join(', ')}.`);
+    }
+    result.status = body.status;
+  }
+
+  if (body.order !== undefined) {
+    const order = Number(body.order);
+    if (!Number.isFinite(order)) {
+      throw validationError('Order must be a number.');
+    }
+    result.order = order;
+  }
+
+  return result;
+}
+
+export async function listTasks(req, res, next) {
+  try {
+    const tasks = await Task.find({ owner: req.user._id }).sort({ status: 1, order: 1, createdAt: 1 });
+    res.status(200).json({ ok: true, tasks });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function createTask(req, res, next) {
+  try {
+    const data = sanitizeTaskInput(req.body, { partial: false });
+    const { days, ...taskFields } = data;
+
+    const category = taskFields.category ?? 'Other';
+    taskFields.category = category;
+    taskFields.priority = derivePriority(taskFields.hardness);
+    taskFields.xp = calculateQuestXp({ hardness: taskFields.hardness, category, days });
+    taskFields.dueDate = new Date(Date.now() + days * DAY_MS);
+
+    if (taskFields.order === undefined) {
+      const lastInStatus = await Task.findOne({ owner: req.user._id, status: taskFields.status ?? 'backlog' }).sort({
+        order: -1
+      });
+      taskFields.order = lastInStatus ? lastInStatus.order + 1 : 0;
+    }
+
+    const task = await Task.create({ ...taskFields, owner: req.user._id });
+    res.status(201).json({ ok: true, message: 'Quest created.', task });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function updateTask(req, res, next) {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      throw notFoundError('Quest not found.');
+    }
+
+    const data = sanitizeTaskInput(req.body, { partial: true });
+    const { days, ...rest } = data;
+
+    const existing = await Task.findOne({ _id: req.params.id, owner: req.user._id });
+    if (!existing) {
+      throw notFoundError('Quest not found.');
+    }
+
+    const updates = { ...rest };
+
+    const recalculatingDifficulty = updates.hardness !== undefined || updates.category !== undefined || days !== undefined;
+    if (recalculatingDifficulty) {
+      const hardness = updates.hardness ?? existing.hardness;
+      const category = updates.category ?? existing.category;
+      updates.priority = derivePriority(hardness);
+
+      const effectiveDays =
+        days !== undefined
+          ? days
+          : Math.max(0, Math.ceil((existing.dueDate.getTime() - Date.now()) / DAY_MS));
+      updates.xp = calculateQuestXp({ hardness, category, days: effectiveDays });
+
+      if (days !== undefined) {
+        updates.dueDate = new Date(Date.now() + days * DAY_MS);
+      }
+    }
+
+    let earlyBonus = false;
+    const isNewlyCompleted = updates.status === 'done' && existing.status !== 'done' && !existing.xpAwarded;
+    if (isNewlyCompleted) {
+      updates.xpAwarded = true;
+      earlyBonus = Boolean(existing.dueDate && Date.now() <= existing.dueDate.getTime());
+      const awardedXp = (updates.xp ?? existing.xp) + (earlyBonus ? EARLY_COMPLETION_BONUS : 0);
+      req.user.xp += awardedXp;
+      await req.user.save();
+    }
+
+    const task = await Task.findOneAndUpdate({ _id: req.params.id, owner: req.user._id }, updates, {
+      new: true,
+      runValidators: true
+    });
+
+    res.status(200).json({
+      ok: true,
+      message: 'Quest updated.',
+      task,
+      earlyBonus,
+      bonusXp: earlyBonus ? EARLY_COMPLETION_BONUS : 0
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function deleteTask(req, res, next) {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      throw notFoundError('Quest not found.');
+    }
+
+    const task = await Task.findOneAndDelete({ _id: req.params.id, owner: req.user._id });
+
+    if (!task) {
+      throw notFoundError('Quest not found.');
+    }
+
+    res.status(200).json({ ok: true, message: 'Quest deleted.' });
+  } catch (error) {
+    next(error);
+  }
+}
