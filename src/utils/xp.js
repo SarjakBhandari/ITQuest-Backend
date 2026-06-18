@@ -1,5 +1,6 @@
 const XP_PER_LEVEL = 500;
 const DAILY_LOGIN_XP = 10;
+const STREAK_FREEZE_INTERVAL = 7;
 
 export function getLevelProgress(totalXp) {
   const xp = Math.max(0, totalXp);
@@ -17,6 +18,12 @@ function startOfDay(date) {
 function daysBetween(a, b) {
   const msPerDay = 24 * 60 * 60 * 1000;
   return Math.round((startOfDay(b).getTime() - startOfDay(a).getTime()) / msPerDay);
+}
+
+function awardStreakFreezeIfEarned(user) {
+  if (user.streak > 0 && user.streak % STREAK_FREEZE_INTERVAL === 0) {
+    user.freezesAvailable += 1;
+  }
 }
 
 export function applyDailyLogin(user) {
@@ -38,6 +45,7 @@ export function applyDailyLogin(user) {
   if (gap === 1) {
     user.streak += 1;
     user.xp += DAILY_LOGIN_XP;
+    awardStreakFreezeIfEarned(user);
   } else if (gap === 2 && user.freezesAvailable > 0) {
     user.freezesAvailable -= 1;
     user.xp += DAILY_LOGIN_XP;
@@ -49,4 +57,4 @@ export function applyDailyLogin(user) {
   user.lastLoginAt = now;
 }
 
-export { XP_PER_LEVEL, DAILY_LOGIN_XP };
+export { XP_PER_LEVEL, DAILY_LOGIN_XP, STREAK_FREEZE_INTERVAL };
