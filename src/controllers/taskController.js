@@ -1,9 +1,16 @@
 import mongoose from 'mongoose';
 
 import { Task, categoryValues, statusValues } from '../models/Task.js';
-import { EARLY_COMPLETION_BONUS, calculateQuestXp, derivePriority } from '../utils/questXp.js';
-
-const DAY_MS = 24 * 60 * 60 * 1000;
+import {
+  DAY_MS,
+  EARLY_COMPLETION_BONUS,
+  QUEST_COMPLETION_FREEZE_INTERVAL,
+  calculateOverduePenalty,
+  calculateQuestXp,
+  calculateSnoozeXpCut,
+  isTaskOverdue,
+  withDerivedFields
+} from '../utils/questXp.js';
 
 function validationError(message) {
   const error = new Error(message);
@@ -84,10 +91,22 @@ function sanitizeTaskInput(body = {}, { partial } = { partial: false }) {
   return result;
 }
 
+async function applyOverduePenalties(tasks) {
+  for (const task of tasks) {
+    if (isTaskOverdue(task) && !task.overduePenaltyApplied) {
+      const penalty = calculateOverduePenalty(task.xp);
+      task.xp = Math.max(0, task.xp - penalty);
+      task.overduePenaltyApplied = true;
+      await task.save();
+    }
+  }
+}
+
 export async function listTasks(req, res, next) {
   try {
     const tasks = await Task.find({ owner: req.user._id }).sort({ status: 1, order: 1, createdAt: 1 });
-    res.status(200).json({ ok: true, tasks });
+    await applyOverduePenalties(tasks);
+    res.status(200).json({ ok: true, tasks: tasks.map(withDerivedFields) });
   } catch (error) {
     next(error);
   }
@@ -100,7 +119,6 @@ export async function createTask(req, res, next) {
 
     const category = taskFields.category ?? 'Other';
     taskFields.category = category;
-    taskFields.priority = derivePriority(taskFields.hardness);
     taskFields.xp = calculateQuestXp({ hardness: taskFields.hardness, category, days });
     taskFields.dueDate = new Date(Date.now() + days * DAY_MS);
 
@@ -112,7 +130,7 @@ export async function createTask(req, res, next) {
     }
 
     const task = await Task.create({ ...taskFields, owner: req.user._id });
-    res.status(201).json({ ok: true, message: 'Quest created.', task });
+    res.status(201).json({ ok: true, message: 'Quest created.', task: withDerivedFields(task) });
   } catch (error) {
     next(error);
   }
@@ -132,13 +150,16 @@ export async function updateTask(req, res, next) {
       throw notFoundError('Quest not found.');
     }
 
+    if (existing.status === 'done' && rest.status !== undefined && rest.status !== 'done') {
+      throw validationError("Completed quests can't be moved.");
+    }
+
     const updates = { ...rest };
 
     const recalculatingDifficulty = updates.hardness !== undefined || updates.category !== undefined || days !== undefined;
     if (recalculatingDifficulty) {
       const hardness = updates.hardness ?? existing.hardness;
       const category = updates.category ?? existing.category;
-      updates.priority = derivePriority(hardness);
 
       const effectiveDays =
         days !== undefined
@@ -151,6 +172,19 @@ export async function updateTask(req, res, next) {
       }
     }
 
+    const isPausing = updates.status === 'rest' && existing.status !== 'rest';
+    const isResuming = existing.status === 'rest' && updates.status !== undefined && updates.status !== 'rest';
+
+    if (isPausing) {
+      updates.pausedAt = new Date();
+    } else if (isResuming) {
+      if (existing.pausedAt && existing.dueDate) {
+        const pausedDurationMs = Date.now() - existing.pausedAt.getTime();
+        updates.dueDate = new Date(existing.dueDate.getTime() + pausedDurationMs);
+      }
+      updates.pausedAt = null;
+    }
+
     let earlyBonus = false;
     const isNewlyCompleted = updates.status === 'done' && existing.status !== 'done' && !existing.xpAwarded;
     if (isNewlyCompleted) {
@@ -158,6 +192,10 @@ export async function updateTask(req, res, next) {
       earlyBonus = Boolean(existing.dueDate && Date.now() <= existing.dueDate.getTime());
       const awardedXp = (updates.xp ?? existing.xp) + (earlyBonus ? EARLY_COMPLETION_BONUS : 0);
       req.user.xp += awardedXp;
+      req.user.completedQuestsCount += 1;
+      if (req.user.completedQuestsCount % QUEST_COMPLETION_FREEZE_INTERVAL === 0) {
+        req.user.freezesAvailable += 1;
+      }
       await req.user.save();
     }
 
@@ -169,10 +207,45 @@ export async function updateTask(req, res, next) {
     res.status(200).json({
       ok: true,
       message: 'Quest updated.',
-      task,
+      task: withDerivedFields(task),
       earlyBonus,
       bonusXp: earlyBonus ? EARLY_COMPLETION_BONUS : 0
     });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function snoozeTask(req, res, next) {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      throw notFoundError('Quest not found.');
+    }
+
+    const existing = await Task.findOne({ _id: req.params.id, owner: req.user._id });
+    if (!existing) {
+      throw notFoundError('Quest not found.');
+    }
+
+    if (existing.status === 'done') {
+      throw validationError("Completed quests can't be snoozed.");
+    }
+
+    const cutXp = calculateSnoozeXpCut(existing.xp);
+    const baseDueDate = existing.dueDate ? existing.dueDate.getTime() : Date.now();
+
+    const task = await Task.findOneAndUpdate(
+      { _id: req.params.id, owner: req.user._id },
+      {
+        xp: Math.max(0, existing.xp - cutXp),
+        dueDate: new Date(baseDueDate + DAY_MS),
+        snoozeCount: existing.snoozeCount + 1,
+        overduePenaltyApplied: false
+      },
+      { new: true, runValidators: true }
+    );
+
+    res.status(200).json({ ok: true, message: 'Quest snoozed.', task: withDerivedFields(task), cutXp });
   } catch (error) {
     next(error);
   }

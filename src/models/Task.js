@@ -69,6 +69,18 @@ const taskSchema = new mongoose.Schema(
     xpAwarded: {
       type: Boolean,
       default: false
+    },
+    pausedAt: {
+      type: Date,
+      default: null
+    },
+    snoozeCount: {
+      type: Number,
+      default: 0
+    },
+    overduePenaltyApplied: {
+      type: Boolean,
+      default: false
     }
   },
   {
