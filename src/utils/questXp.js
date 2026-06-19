@@ -58,7 +58,7 @@ export function calculateOverduePenalty(currentXp) {
   return Math.round((currentXp * OVERDUE_PENALTY_RATIO) / 10) * 10;
 }
 
-// Read-time view of a task with priority/overdue recomputed against "now" —
+// Read-time view of a task with priority/overdue recomputed against "now" -
 // these reflect the passage of time and shouldn't require an explicit edit to update.
 export function withDerivedFields(task) {
   const plain = typeof task.toObject === 'function' ? task.toObject() : task;

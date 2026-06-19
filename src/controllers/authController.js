@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 
+import { GroupXpLog } from '../models/GroupXpLog.js';
 import { PendingRegistration } from '../models/PendingRegistration.js';
 import { User } from '../models/User.js';
 import { sendOtpMail } from '../utils/mailer.js';
@@ -145,8 +146,12 @@ export async function login(req, res, next) {
       throw error;
     }
 
-    applyDailyLogin(user);
+    const dailyLoginXp = applyDailyLogin(user);
     await user.save();
+
+    if (dailyLoginXp > 0 && user.group) {
+      await GroupXpLog.create({ group: user.group, user: user._id, xp: dailyLoginXp });
+    }
 
     const token = signToken({ sub: user._id.toString() });
     res.cookie(COOKIE_NAME, token, getCookieOptions());

@@ -6,6 +6,7 @@ import express from 'express';
 import { connectDatabase } from './config/db.js';
 import authRoutes from './routes/authRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
+import groupRoutes from './routes/groupRoutes.js';
 import taskRoutes from './routes/taskRoutes.js';
 
 dotenv.config();
@@ -30,6 +31,7 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/groups', groupRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({ ok: false, message: 'Route not found.' });
