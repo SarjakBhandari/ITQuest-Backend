@@ -33,13 +33,13 @@ export function applyDailyLogin(user) {
     user.streak = 1;
     user.xp += DAILY_LOGIN_XP;
     user.lastLoginAt = now;
-    return;
+    return DAILY_LOGIN_XP;
   }
 
   const gap = daysBetween(user.lastLoginAt, now);
 
   if (gap === 0) {
-    return;
+    return 0;
   }
 
   if (gap === 1) {
@@ -55,6 +55,7 @@ export function applyDailyLogin(user) {
   }
 
   user.lastLoginAt = now;
+  return DAILY_LOGIN_XP;
 }
 
 export { XP_PER_LEVEL, DAILY_LOGIN_XP, STREAK_FREEZE_INTERVAL };

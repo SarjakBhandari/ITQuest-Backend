@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 
+import { GroupXpLog } from '../models/GroupXpLog.js';
 import { Task, categoryValues, statusValues } from '../models/Task.js';
 import {
   DAY_MS,
@@ -197,6 +198,10 @@ export async function updateTask(req, res, next) {
         req.user.freezesAvailable += 1;
       }
       await req.user.save();
+
+      if (req.user.group) {
+        await GroupXpLog.create({ group: req.user.group, user: req.user._id, xp: awardedXp });
+      }
     }
 
     const task = await Task.findOneAndUpdate({ _id: req.params.id, owner: req.user._id }, updates, {

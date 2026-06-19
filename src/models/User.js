@@ -43,6 +43,11 @@ const userSchema = new mongoose.Schema(
       type: Number,
       default: 0,
       min: 0
+    },
+    group: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Group',
+      default: null
     }
   },
   {
