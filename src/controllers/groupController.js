@@ -70,7 +70,7 @@ function getSeasonInfo(now = new Date()) {
 async function buildGroupPayload(group, currentUserId) {
   const { name: seasonName, weekStart, weekEnd } = getSeasonInfo();
 
-  const members = await User.find({ _id: { $in: group.members } }).select('heroName');
+  const members = await User.find({ _id: { $in: group.members } }).select('heroName avatarColor');
 
   const logs = await GroupXpLog.aggregate([
     { $match: { group: group._id, awardedAt: { $gte: weekStart, $lt: weekEnd } } },
@@ -82,6 +82,7 @@ async function buildGroupPayload(group, currentUserId) {
     .map((member) => ({
       id: member._id.toString(),
       heroName: member.heroName,
+      avatarColor: member.avatarColor,
       seasonXp: seasonXpByUser.get(member._id.toString()) ?? 0,
       isYou: member._id.toString() === currentUserId.toString(),
       isOwner: member._id.toString() === group.owner.toString()

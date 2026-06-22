@@ -48,6 +48,28 @@ const userSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Group',
       default: null
+    },
+    avatarColor: {
+      type: String,
+      default: null
+    },
+    maxActiveQuests: {
+      type: Number,
+      default: 5,
+      min: 1,
+      max: 20
+    },
+    emailNudgesEnabled: {
+      type: Boolean,
+      default: true
+    },
+    lastNudgeEmailAt: {
+      type: Date,
+      default: null
+    },
+    lastQuestActivityAt: {
+      type: Date,
+      default: null
     }
   },
   {

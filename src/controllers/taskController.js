@@ -131,6 +131,10 @@ export async function createTask(req, res, next) {
     }
 
     const task = await Task.create({ ...taskFields, owner: req.user._id });
+
+    req.user.lastQuestActivityAt = new Date();
+    await req.user.save();
+
     res.status(201).json({ ok: true, message: 'Quest created.', task: withDerivedFields(task) });
   } catch (error) {
     next(error);
@@ -197,11 +201,14 @@ export async function updateTask(req, res, next) {
       if (req.user.completedQuestsCount % QUEST_COMPLETION_FREEZE_INTERVAL === 0) {
         req.user.freezesAvailable += 1;
       }
-      await req.user.save();
+    }
 
-      if (req.user.group) {
-        await GroupXpLog.create({ group: req.user.group, user: req.user._id, xp: awardedXp });
-      }
+    req.user.lastQuestActivityAt = new Date();
+    await req.user.save();
+
+    if (isNewlyCompleted && req.user.group) {
+      const awardedXp = (updates.xp ?? existing.xp) + (earlyBonus ? EARLY_COMPLETION_BONUS : 0);
+      await GroupXpLog.create({ group: req.user.group, user: req.user._id, xp: awardedXp });
     }
 
     const task = await Task.findOneAndUpdate({ _id: req.params.id, owner: req.user._id }, updates, {
