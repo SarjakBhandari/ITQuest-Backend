@@ -4,9 +4,13 @@ import dotenv from 'dotenv';
 import express from 'express';
 
 import { connectDatabase } from './config/db.js';
+import { startNudgeScheduler } from './jobs/nudgeJob.js';
 import authRoutes from './routes/authRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import groupRoutes from './routes/groupRoutes.js';
+import notificationsRoutes from './routes/notificationsRoutes.js';
+import settingsRoutes from './routes/settingsRoutes.js';
+import statsRoutes from './routes/statsRoutes.js';
 import taskRoutes from './routes/taskRoutes.js';
 
 dotenv.config();
@@ -32,6 +36,9 @@ app.use('/api/auth', authRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/groups', groupRoutes);
+app.use('/api/stats', statsRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/notifications', notificationsRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({ ok: false, message: 'Route not found.' });
@@ -54,6 +61,8 @@ async function startServer() {
   app.listen(port, () => {
     console.log(`Backend listening on http://localhost:${port}`);
   });
+
+  startNudgeScheduler();
 }
 
 startServer().catch((error) => {
