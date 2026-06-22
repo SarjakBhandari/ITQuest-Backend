@@ -5,7 +5,6 @@ import { withDerivedFields } from '../utils/questXp.js';
 const priorityWeight = { High: 3, Medium: 2, Low: 1 };
 const DAY_MS = 24 * 60 * 60 * 1000;
 const PRIORITY_QUEST_LIMIT = 4;
-const ACTIVE_QUEST_LIMIT = 5;
 
 // Backend mirror of the dashboard's Normal/Certs/Exam mode buttons: each mode
 // narrows to its matching quest category (Normal stays unfiltered).
@@ -40,7 +39,8 @@ export async function getDashboardSummary(req, res, next) {
     const nonDoneTasks = tasks.filter((task) => task.status !== 'done');
     const inProgressTasks = tasks.filter((task) => task.status === 'in-progress');
 
-    const overloadPct = Math.min(100, Math.round((inProgressTasks.length / ACTIVE_QUEST_LIMIT) * 100));
+    const activeQuestLimit = req.user.maxActiveQuests;
+    const overloadPct = Math.min(100, Math.round((inProgressTasks.length / activeQuestLimit) * 100));
 
     const workloadCounts = categoryValues.reduce((acc, category) => ({ ...acc, [category]: 0 }), {});
     for (const task of inProgressTasks) {
@@ -88,6 +88,7 @@ export async function getDashboardSummary(req, res, next) {
       ok: true,
       summary: {
         heroName: req.user.heroName,
+        avatarColor: req.user.avatarColor,
         level,
         xp: xpIntoLevel,
         xpForNextLevel,
@@ -95,6 +96,7 @@ export async function getDashboardSummary(req, res, next) {
         streak: req.user.streak,
         freezesAvailable: req.user.freezesAvailable,
         overloadPct,
+        maxActiveQuests: activeQuestLimit,
         workload,
         priorityQuests,
         weeklyXpPotential
