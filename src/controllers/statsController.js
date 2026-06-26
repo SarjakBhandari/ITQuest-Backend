@@ -10,6 +10,43 @@ function startOfDay(date) {
   return result;
 }
 
+function getWeekStart(date) {
+  const result = startOfDay(date);
+  const day = result.getDay();
+  const diffToMonday = day === 0 ? 6 : day - 1;
+  result.setDate(result.getDate() - diffToMonday);
+  return result;
+}
+
+function buildPersonalBest(doneTasks) {
+  const weekTotals = new Map();
+  for (const task of doneTasks) {
+    const weekKey = getWeekStart(task.updatedAt).toISOString().slice(0, 10);
+    weekTotals.set(weekKey, (weekTotals.get(weekKey) ?? 0) + task.xp);
+  }
+
+  const currentWeekKey = getWeekStart(new Date()).toISOString().slice(0, 10);
+  const currentWeekXp = weekTotals.get(currentWeekKey) ?? 0;
+
+  let bestWeekXp = 0;
+  let bestWeekKey = null;
+  for (const [weekKey, total] of weekTotals.entries()) {
+    if (weekKey === currentWeekKey) continue;
+    if (total > bestWeekXp) {
+      bestWeekXp = total;
+      bestWeekKey = weekKey;
+    }
+  }
+
+  return {
+    currentWeekXp,
+    bestWeekXp,
+    bestWeekLabel: bestWeekKey ? `Week of ${bestWeekKey}` : 'No prior weeks yet',
+    delta: currentWeekXp - bestWeekXp,
+    isNewBest: bestWeekKey !== null && currentWeekXp > bestWeekXp
+  };
+}
+
 export async function getMyStats(req, res, next) {
   try {
     const tasks = await Task.find({ owner: req.user._id });
