@@ -27,9 +27,27 @@ export async function requireAuth(req, res, next) {
       throw error;
     }
 
+    if (user.suspended) {
+      const error = new Error(
+        user.suspendedReason ? `Your account has been suspended: ${user.suspendedReason}` : 'Your account has been suspended.'
+      );
+      error.statusCode = 403;
+      throw error;
+    }
+
     req.user = user;
     next();
   } catch (error) {
     next(error);
   }
+}
+
+export async function requireAdmin(req, res, next) {
+  if (!req.user?.isAdmin) {
+    const error = new Error('Administrator access required.');
+    error.statusCode = 403;
+    next(error);
+    return;
+  }
+  next();
 }

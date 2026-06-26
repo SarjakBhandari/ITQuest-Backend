@@ -5,6 +5,7 @@ import express from 'express';
 
 import { connectDatabase } from './config/db.js';
 import { startNudgeScheduler } from './jobs/nudgeJob.js';
+import { promoteAdminFromEnv } from './utils/adminSeed.js';
 import authRoutes from './routes/authRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import groupRoutes from './routes/groupRoutes.js';
@@ -57,6 +58,7 @@ app.use((error, _req, res, _next) => {
 
 async function startServer() {
   await connectDatabase();
+  await promoteAdminFromEnv();
 
   app.listen(port, () => {
     console.log(`Backend listening on http://localhost:${port}`);
