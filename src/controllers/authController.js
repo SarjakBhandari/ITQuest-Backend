@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { GroupXpLog } from '../models/GroupXpLog.js';
 import { PendingRegistration } from '../models/PendingRegistration.js';
 import { User } from '../models/User.js';
+import { promoteAdminFromEnv } from '../utils/adminSeed.js';
 import { sendOtpMail } from '../utils/mailer.js';
 import { generateOtp, getOtpExpiryDate, sanitizeUser } from '../utils/otp.js';
 import { COOKIE_NAME, getCookieOptions, signToken } from '../utils/jwt.js';
@@ -111,6 +112,7 @@ export async function verifyRegistrationOtp(req, res, next) {
     });
 
     await PendingRegistration.deleteOne({ email: normalizedEmail });
+    await promoteAdminFromEnv();
 
     res.status(200).json({
       ok: true,
@@ -143,6 +145,14 @@ export async function login(req, res, next) {
     if (!passwordMatches) {
       const error = new Error('Incorrect email or password.');
       error.statusCode = 401;
+      throw error;
+    }
+
+    if (user.suspended) {
+      const error = new Error(
+        user.suspendedReason ? `Your account has been suspended: ${user.suspendedReason}` : 'Your account has been suspended.'
+      );
+      error.statusCode = 403;
       throw error;
     }
 
