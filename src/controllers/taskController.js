@@ -269,6 +269,102 @@ export async function snoozeTask(req, res, next) {
   }
 }
 
+const PRIORITY_WEIGHT = { High: 3, Medium: 2, Low: 1 };
+
+export async function sortTasksByPriority(req, res, next) {
+  try {
+    const tasks = await Task.find({ owner: req.user._id, status: { $ne: 'done' } });
+
+    const byStatus = new Map();
+    for (const task of tasks) {
+      if (!byStatus.has(task.status)) byStatus.set(task.status, []);
+      byStatus.get(task.status).push(task);
+    }
+
+    const updates = [];
+    for (const group of byStatus.values()) {
+      group.sort((a, b) => {
+        const weightDiff = (PRIORITY_WEIGHT[b.priority] ?? 0) - (PRIORITY_WEIGHT[a.priority] ?? 0);
+        if (weightDiff !== 0) return weightDiff;
+        const aDue = a.dueDate ? a.dueDate.getTime() : Infinity;
+        const bDue = b.dueDate ? b.dueDate.getTime() : Infinity;
+        return aDue - bDue;
+      });
+      group.forEach((task, index) => {
+        if (task.order !== index) {
+          updates.push(Task.updateOne({ _id: task._id }, { order: index }));
+        }
+      });
+    }
+
+    await Promise.all(updates);
+
+    const sortedTasks = await Task.find({ owner: req.user._id }).sort({ status: 1, order: 1, createdAt: 1 });
+    res.status(200).json({ ok: true, message: 'Quests sorted by priority.', tasks: sortedTasks.map(withDerivedFields) });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function enableExamMode(req, res, next) {
+  try {
+    if (req.user.examModeActive) {
+      res.status(200).json({ ok: true, message: 'Exam mode is already active.' });
+      return;
+    }
+
+    const tasksToHibernate = await Task.find({
+      owner: req.user._id,
+      category: { $ne: 'Exam' },
+      status: { $in: ['backlog', 'in-progress'] }
+    });
+
+    await Promise.all(
+      tasksToHibernate.map((task) =>
+        Task.updateOne(
+          { _id: task._id },
+          { examHibernated: true, preHibernateStatus: task.status, status: 'rest', pausedAt: new Date() }
+        )
+      )
+    );
+
+    req.user.examModeActive = true;
+    await req.user.save();
+
+    res.status(200).json({
+      ok: true,
+      message: `Exam mode enabled - ${tasksToHibernate.length} other quest${tasksToHibernate.length === 1 ? '' : 's'} hibernated until you exit.`
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function disableExamMode(req, res, next) {
+  try {
+    const hibernatedTasks = await Task.find({ owner: req.user._id, examHibernated: true });
+
+    await Promise.all(
+      hibernatedTasks.map((task) =>
+        Task.updateOne(
+          { _id: task._id },
+          { examHibernated: false, preHibernateStatus: null, status: task.preHibernateStatus ?? 'backlog', pausedAt: null }
+        )
+      )
+    );
+
+    req.user.examModeActive = false;
+    await req.user.save();
+
+    res.status(200).json({
+      ok: true,
+      message: `Exam mode ended - ${hibernatedTasks.length} quest${hibernatedTasks.length === 1 ? '' : 's'} resumed.`
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function deleteTask(req, res, next) {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
