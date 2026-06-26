@@ -70,6 +70,18 @@ const userSchema = new mongoose.Schema(
     lastQuestActivityAt: {
       type: Date,
       default: null
+    },
+    isAdmin: {
+      type: Boolean,
+      default: false
+    },
+    suspended: {
+      type: Boolean,
+      default: false
+    },
+    suspendedReason: {
+      type: String,
+      default: null
     }
   },
   {
