@@ -82,6 +82,7 @@ export async function getMyStats(req, res, next) {
 
     const { level, xpIntoLevel, xpForNextLevel } = getLevelProgress(req.user.xp);
     const achievements = buildAchievements(req.user, categoryBreakdown.length, level);
+    const personalBest = buildPersonalBest(doneTasks);
 
     res.status(200).json({
       ok: true,
@@ -99,7 +100,8 @@ export async function getMyStats(req, res, next) {
         categoryBreakdown,
         bestCategory,
         weeklyCompletions,
-        achievements
+        achievements,
+        personalBest
       }
     });
   } catch (error) {
