@@ -16,7 +16,8 @@ function sanitizeSettings(user) {
     avatarColor: user.avatarColor,
     theme: user.theme,
     maxActiveQuests: user.maxActiveQuests,
-    emailNudgesEnabled: user.emailNudgesEnabled
+    emailNudgesEnabled: user.emailNudgesEnabled,
+    weeklyXpTarget: user.weeklyXpTarget
   };
 }
 
@@ -63,7 +64,7 @@ export async function updateProfile(req, res, next) {
 
 export async function updatePreferences(req, res, next) {
   try {
-    const { maxActiveQuests, emailNudgesEnabled } = req.body ?? {};
+    const { maxActiveQuests, emailNudgesEnabled, weeklyXpTarget } = req.body ?? {};
 
     if (maxActiveQuests !== undefined) {
       const value = Number(maxActiveQuests);
@@ -75,6 +76,14 @@ export async function updatePreferences(req, res, next) {
 
     if (emailNudgesEnabled !== undefined) {
       req.user.emailNudgesEnabled = Boolean(emailNudgesEnabled);
+    }
+
+    if (weeklyXpTarget !== undefined) {
+      const value = Number(weeklyXpTarget);
+      if (!Number.isFinite(value) || value < 0 || value > 100000) {
+        throw validationError('Weekly XP target must be a non-negative number.');
+      }
+      req.user.weeklyXpTarget = Math.round(value);
     }
 
     await req.user.save();
