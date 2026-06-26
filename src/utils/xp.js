@@ -1,3 +1,5 @@
+import { STREAK_MILESTONES } from './achievements.js';
+
 const XP_PER_LEVEL = 500;
 const DAILY_LOGIN_XP = 10;
 const STREAK_FREEZE_INTERVAL = 7;
@@ -56,6 +58,22 @@ export function applyDailyLogin(user) {
 
   user.lastLoginAt = now;
   return DAILY_LOGIN_XP;
+}
+
+export function claimStreakMilestoneRewards(user) {
+  const claimed = user.claimedStreakMilestones ?? [];
+  const newlyClaimed = [];
+
+  for (const milestone of STREAK_MILESTONES) {
+    if (user.streak >= milestone.days && !claimed.includes(milestone.days)) {
+      user.xp += milestone.rewardXp;
+      claimed.push(milestone.days);
+      newlyClaimed.push(milestone);
+    }
+  }
+
+  user.claimedStreakMilestones = claimed;
+  return newlyClaimed;
 }
 
 export { XP_PER_LEVEL, DAILY_LOGIN_XP, STREAK_FREEZE_INTERVAL };
