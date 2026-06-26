@@ -86,6 +86,28 @@ const userSchema = new mongoose.Schema(
     suspendedReason: {
       type: String,
       default: null
+    },
+    lastTouchedTaskId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Task',
+      default: null
+    },
+    lastStreakReminderAt: {
+      type: Date,
+      default: null
+    },
+    weeklyXpTarget: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+    claimedStreakMilestones: {
+      type: [Number],
+      default: []
+    },
+    examModeActive: {
+      type: Boolean,
+      default: false
     }
   },
   {
