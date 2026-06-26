@@ -107,7 +107,11 @@ export async function listTasks(req, res, next) {
   try {
     const tasks = await Task.find({ owner: req.user._id }).sort({ status: 1, order: 1, createdAt: 1 });
     await applyOverduePenalties(tasks);
-    res.status(200).json({ ok: true, tasks: tasks.map(withDerivedFields) });
+    res.status(200).json({
+      ok: true,
+      tasks: tasks.map(withDerivedFields),
+      lastTouchedTaskId: req.user.lastTouchedTaskId ? req.user.lastTouchedTaskId.toString() : null
+    });
   } catch (error) {
     next(error);
   }
@@ -133,6 +137,7 @@ export async function createTask(req, res, next) {
     const task = await Task.create({ ...taskFields, owner: req.user._id });
 
     req.user.lastQuestActivityAt = new Date();
+    req.user.lastTouchedTaskId = task._id;
     await req.user.save();
 
     res.status(201).json({ ok: true, message: 'Quest created.', task: withDerivedFields(task) });
@@ -204,6 +209,7 @@ export async function updateTask(req, res, next) {
     }
 
     req.user.lastQuestActivityAt = new Date();
+    req.user.lastTouchedTaskId = existing._id;
     await req.user.save();
 
     if (isNewlyCompleted && req.user.group) {
