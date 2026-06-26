@@ -13,6 +13,7 @@ export function sanitizeUser(user) {
     email: user.email,
     xp: user.xp ?? 0,
     streak: user.streak ?? 0,
-    freezesAvailable: user.freezesAvailable ?? 0
+    freezesAvailable: user.freezesAvailable ?? 0,
+    isAdmin: Boolean(user.isAdmin)
   };
 }
