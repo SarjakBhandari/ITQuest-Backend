@@ -81,6 +81,19 @@ const taskSchema = new mongoose.Schema(
     overduePenaltyApplied: {
       type: Boolean,
       default: false
+    },
+    examHibernated: {
+      type: Boolean,
+      default: false
+    },
+    preHibernateStatus: {
+      type: String,
+      enum: [...statusValues, null],
+      default: null
+    },
+    deadlineReminderSentAt: {
+      type: Date,
+      default: null
     }
   },
   {
