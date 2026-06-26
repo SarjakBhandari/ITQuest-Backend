@@ -6,6 +6,7 @@ import express from 'express';
 import { connectDatabase } from './config/db.js';
 import { startNudgeScheduler } from './jobs/nudgeJob.js';
 import { promoteAdminFromEnv } from './utils/adminSeed.js';
+import adminRoutes from './routes/adminRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import groupRoutes from './routes/groupRoutes.js';
@@ -40,6 +41,7 @@ app.use('/api/groups', groupRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/notifications', notificationsRoutes);
+app.use('/api/admin', adminRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({ ok: false, message: 'Route not found.' });
