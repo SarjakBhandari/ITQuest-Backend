@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 
 const AVATAR_COLORS = ['#a78bfa', '#facc15', '#23d97e', '#60a5fa', '#f87171', '#45dfa4', '#f97316', '#cebdff'];
+const THEME_IDS = ['violet', 'emerald', 'crimson', 'amber', 'ocean', 'rose'];
 
 function validationError(message) {
   const error = new Error(message);
@@ -13,6 +14,7 @@ function sanitizeSettings(user) {
     heroName: user.heroName,
     email: user.email,
     avatarColor: user.avatarColor,
+    theme: user.theme,
     maxActiveQuests: user.maxActiveQuests,
     emailNudgesEnabled: user.emailNudgesEnabled
   };
@@ -28,7 +30,7 @@ export async function getMySettings(req, res, next) {
 
 export async function updateProfile(req, res, next) {
   try {
-    const { heroName, avatarColor } = req.body ?? {};
+    const { heroName, avatarColor, theme } = req.body ?? {};
 
     if (heroName !== undefined) {
       const trimmed = heroName.trim();
@@ -43,6 +45,13 @@ export async function updateProfile(req, res, next) {
         throw validationError('Choose one of the provided avatar colors.');
       }
       req.user.avatarColor = avatarColor;
+    }
+
+    if (theme !== undefined) {
+      if (!THEME_IDS.includes(theme)) {
+        throw validationError('Choose one of the provided themes.');
+      }
+      req.user.theme = theme;
     }
 
     await req.user.save();
@@ -102,4 +111,4 @@ export async function changePassword(req, res, next) {
   }
 }
 
-export { AVATAR_COLORS };
+export { AVATAR_COLORS, THEME_IDS };

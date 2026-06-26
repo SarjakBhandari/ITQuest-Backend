@@ -89,6 +89,7 @@ export async function getDashboardSummary(req, res, next) {
       summary: {
         heroName: req.user.heroName,
         avatarColor: req.user.avatarColor,
+        theme: req.user.theme,
         level,
         xp: xpIntoLevel,
         xpForNextLevel,

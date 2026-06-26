@@ -53,6 +53,10 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: null
     },
+    theme: {
+      type: String,
+      default: 'violet'
+    },
     maxActiveQuests: {
       type: Number,
       default: 5,
