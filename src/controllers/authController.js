@@ -1,13 +1,14 @@
 import bcrypt from 'bcryptjs';
 
 import { GroupXpLog } from '../models/GroupXpLog.js';
+import { Notification } from '../models/Notification.js';
 import { PendingRegistration } from '../models/PendingRegistration.js';
 import { User } from '../models/User.js';
 import { promoteAdminFromEnv } from '../utils/adminSeed.js';
 import { sendOtpMail } from '../utils/mailer.js';
 import { generateOtp, getOtpExpiryDate, sanitizeUser } from '../utils/otp.js';
 import { COOKIE_NAME, getCookieOptions, signToken } from '../utils/jwt.js';
-import { applyDailyLogin } from '../utils/xp.js';
+import { applyDailyLogin, claimStreakMilestoneRewards } from '../utils/xp.js';
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -157,10 +158,29 @@ export async function login(req, res, next) {
     }
 
     const dailyLoginXp = applyDailyLogin(user);
+    const newlyClaimedMilestones = claimStreakMilestoneRewards(user);
     await user.save();
 
     if (dailyLoginXp > 0 && user.group) {
       await GroupXpLog.create({ group: user.group, user: user._id, xp: dailyLoginXp });
+    }
+
+    for (const milestone of newlyClaimedMilestones) {
+      await Notification.findOneAndUpdate(
+        { owner: user._id, dedupeKey: `streak-milestone:${milestone.days}` },
+        {
+          $set: {
+            owner: user._id,
+            dedupeKey: `streak-milestone:${milestone.days}`,
+            type: 'achievement',
+            icon: 'local_fire_department',
+            title: `${milestone.days}-day streak reward!`,
+            body: `You hit a ${milestone.days} day login streak and earned +${milestone.rewardXp} bonus XP.`
+          },
+          $setOnInsert: { read: false }
+        },
+        { upsert: true }
+      );
     }
 
     const token = signToken({ sub: user._id.toString() });
